@@ -99,7 +99,7 @@ async def query(req: QueryRequest):
         ]
     )
     answer = message.content[0].text
-    return {"answer": answer}
+    return {"answer": answer, "confidence": "medium"}
 
 
 if __name__ == "__main__":
