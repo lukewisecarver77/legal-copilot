@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Legal Copilot</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --bg:        #0d0d0d;
+      --surface:   #161616;
+      --border:    #2a2a2a;
+      --amber:     #e8a020;
+      --amber-dim: #a36e10;
+      --text:      #e8e4dc;
+      --muted:     #6b6560;
+      --error:     #c0392b;
+      --high:      #2ecc71;
+      --med:       #f39c12;
+      --low:       #e74c3c;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    /* ── Grain overlay ── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 9999;
+      opacity: 0.4;
+    }
+
+    /* ── Layout ── */
+    .app {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      grid-template-rows: auto 1fr;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    header {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 18px 32px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      animation: fadeDown 0.5s ease both;
+    }
+
+    .logo-mark {
+      width: 36px; height: 36px;
+      border: 2px solid var(--amber);
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Playfair Display', serif;
+      font-size: 18px; font-weight: 700;
+      color: var(--amber);
+      flex-shrink: 0;
+    }
+
+    .logo-text {
+      font-family: 'Playfair Display', serif;
+      font-size: 20px;
+      letter-spacing: 0.02em;
+    }
+
+    .logo-text span {
+      color: var(--amber);
+    }
+
+    .header-tag {
+      margin-left: auto;
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      border: 1px solid var(--border);
+      padding: 4px 10px;
+    }
+
+    /* ── Left Panel ── */
+    .left-panel {
+      border-right: 1px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      animation: fadeLeft 0.5s ease 0.1s both;
+    }
+
+    .panel-section {
+      padding: 24px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .panel-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+
+    textarea {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      line-height: 1.7;
+      padding: 14px;
+      resize: none;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    textarea:focus {
+      border-color: var(--amber-dim);
+    }
+
+    textarea::placeholder { color: var(--muted); }
+
+    .upload-btn {
+      width: 100%;
+      margin-top: 12px;
+      padding: 11px 20px;
+      background: var(--amber);
+      color: #000;
+      border: none;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+
+    .upload-btn:hover { background: #f5b030; }
+    .upload-btn:active { transform: scale(0.98); }
+    .upload-btn:disabled { background: var(--muted); cursor: not-allowed; }
+
+    /* Doc stats */
+    .doc-stats {
+      display: none;
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+      animation: fadeIn 0.3s ease;
+    }
+
+    .doc-stats.visible { display: block; }
+
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 5px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .stat-row:last-child { border-bottom: none; }
+
+    .stat-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .stat-value {
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      color: var(--amber);
+    }
+
+    /* Sample questions */
+    .samples-section {
+      padding: 20px 24px;
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .sample-q {
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      text-align: left;
+      width: 100%;
+      cursor: pointer;
+      margin-bottom: 8px;
+      transition: border-color 0.2s, background 0.2s;
+      line-height: 1.5;
+    }
+
+    .sample-q:hover {
+      border-color: var(--amber-dim);
+      background: rgba(232,160,32,0.06);
+    }
+
+    /* ── Right Panel ── */
+    .right-panel {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      animation: fadeRight 0.5s ease 0.2s both;
+    }
+
+    /* Chat area */
+    .chat-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .empty-state {
+      margin: auto;
+      text-align: center;
+      max-width: 360px;
+    }
+
+    .empty-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+      opacity: 0.3;
+    }
+
+    .empty-state h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 22px;
+      font-weight: 400;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+
+    .empty-state p {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    /* Message bubbles */
+    .msg {
+      max-width: 720px;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .msg-user {
+      align-self: flex-end;
+    }
+
+    .msg-user .bubble {
+      background: rgba(232,160,32,0.12);
+      border: 1px solid var(--amber-dim);
+      padding: 14px 18px;
+      font-size: 14px;
+    }
+
+    .msg-assistant .bubble {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 20px 22px;
+    }
+
+    .msg-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 6px;
+    }
+
+    .msg-user .msg-label { text-align: right; }
+
+    .answer-text {
+      font-size: 14px;
+      line-height: 1.8;
+      white-space: pre-wrap;
+    }
+
+    /* Sources */
+    .sources {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    .sources-header {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .confidence-badge {
+      padding: 2px 8px;
+      font-size: 10px;
+      letter-spacing: 0.08em;
+    }
+
+    .conf-high { background: rgba(46,204,113,0.15); color: var(--high); border: 1px solid rgba(46,204,113,0.3); }
+    .conf-medium { background: rgba(243,156,18,0.15); color: var(--med); border: 1px solid rgba(243,156,18,0.3); }
+    .conf-low { background: rgba(231,76,60,0.15); color: var(--low); border: 1px solid rgba(231,76,60,0.3); }
+
+    .source-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      padding: 5px 10px;
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      color: var(--muted);
+      margin: 0 6px 6px 0;
+    }
+
+    .source-num {
+      color: var(--amber);
+      font-weight: 500;
+    }
+
+    /* Loading */
+    .msg-loading .bubble {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 18px 22px;
+    }
+
+    .dots span {
+      display: inline-block;
+      width: 6px; height: 6px;
+      background: var(--amber);
+      border-radius: 50%;
+      margin: 0 3px;
+      animation: bounce 1.2s infinite;
+    }
+
+    .dots span:nth-child(2) { animation-delay: 0.2s; }
+    .dots span:nth-child(3) { animation-delay: 0.4s; }
+
+    /* Input bar */
+    .input-bar {
+      padding: 20px 32px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      gap: 12px;
+      align-items: flex-end;
+    }
+
+    .question-input {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      padding: 12px 16px;
+      outline: none;
+      resize: none;
+      min-height: 46px;
+      max-height: 120px;
+      line-height: 1.5;
+      transition: border-color 0.2s;
+    }
+
+    .question-input:focus { border-color: var(--amber-dim); }
+    .question-input::placeholder { color: var(--muted); }
+
+    .send-btn {
+      padding: 12px 20px;
+      background: var(--amber);
+      color: #000;
+      border: none;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+      white-space: nowrap;
+      height: 46px;
+    }
+
+    .send-btn:hover { background: #f5b030; }
+    .send-btn:disabled { background: var(--muted); cursor: not-allowed; }
+
+    /* Error toast */
+    .toast {
+      position: fixed;
+      bottom: 80px; right: 32px;
+      background: var(--error);
+      color: #fff;
+      padding: 12px 20px;
+      font-size: 13px;
+      max-width: 320px;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: all 0.3s;
+      z-index: 1000;
+    }
+
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); }
+
+    /* Animations */
+    @keyframes fadeDown  { from { opacity:0; transform:translateY(-12px); } to { opacity:1; transform:none; } }
+    @keyframes fadeLeft  { from { opacity:0; transform:translateX(-12px); } to { opacity:1; transform:none; } }
+    @keyframes fadeRight { from { opacity:0; transform:translateX(12px);  } to { opacity:1; transform:none; } }
+    @keyframes fadeIn    { from { opacity:0; transform:translateY(6px);   } to { opacity:1; transform:none; } }
+    @keyframes bounce    { 0%,80%,100% { transform:scale(0); } 40% { transform:scale(1); } }
+  </style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- Header -->
+  <header>
+    <div class="logo-mark">§</div>
+    <div class="logo-text">Legal <span>Copilot</span></div>
+    <div class="header-tag">RAG · LLM · Legal AI</div>
+  </header>
+
+  <!-- Left panel: upload -->
+  <aside class="left-panel">
+    <div class="panel-section">
+      <div class="panel-label">01 — Upload Document</div>
+      <textarea id="docInput" rows="8" placeholder="Paste your contract, lease, terms of service, or any legal document here…"></textarea>
+      <button class="upload-btn" id="uploadBtn" onclick="uploadDoc()">
+        <span id="uploadBtnText">Analyze Document</span>
+      </button>
+    </div>
+
+    <div class="doc-stats" id="docStats">
+      <div class="panel-label">Document Info</div>
+      <div class="stat-row">
+        <span class="stat-label">Words</span>
+        <span class="stat-value" id="statWords">—</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Chunks</span>
+        <span class="stat-value" id="statChunks">—</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Status</span>
+        <span class="stat-value" style="color: var(--high)">Ready</span>
+      </div>
+    </div>
+
+    <div class="samples-section">
+      <div class="panel-label">02 — Sample Questions</div>
+      <button class="sample-q" onclick="useQuestion('What are the termination conditions in this document?')">
+        What are the termination conditions?
+      </button>
+      <button class="sample-q" onclick="useQuestion('What are the payment terms and deadlines?')">
+        What are the payment terms and deadlines?
+      </button>
+      <button class="sample-q" onclick="useQuestion('Are there any non-compete or non-disclosure clauses?')">
+        Are there any non-compete or NDA clauses?
+      </button>
+      <button class="sample-q" onclick="useQuestion('What happens if either party breaches this agreement?')">
+        What happens in case of a breach?
+      </button>
+      <button class="sample-q" onclick="useQuestion('Summarize the key obligations of each party.')">
+        Summarize obligations of each party
+      </button>
+      <button class="sample-q" onclick="useQuestion('What jurisdiction and governing law applies?')">
+        What jurisdiction governs this?
+      </button>
+    </div>
+  </aside>
+
+  <!-- Right panel: chat -->
+  <main class="right-panel">
+    <div class="chat-area" id="chatArea">
+      <div class="empty-state" id="emptyState">
+        <div class="empty-icon">⚖</div>
+        <h2>Ask your document anything</h2>
+        <p>Paste a legal document on the left, then ask questions in plain English. The AI will cite the relevant sections.</p>
+      </div>
+    </div>
+
+    <div class="input-bar">
+      <textarea
+        class="question-input"
+        id="questionInput"
+        placeholder="Ask a question about your document…"
+        rows="1"
+        onkeydown="handleKey(event)"
+        oninput="autoResize(this)"
+      ></textarea>
+      <button class="send-btn" id="sendBtn" onclick="askQuestion()">Ask →</button>
+    </div>
+  </main>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // ── State ─────────────────────────────────────────────────────────────────
+  const sessionId = 'sess_' + Math.random().toString(36).slice(2, 10);
+  let docReady = false;
+  let loading = false;
+
+  // ── Upload ────────────────────────────────────────────────────────────────
+  async function uploadDoc() {
+    const text = document.getElementById('docInput').value.trim();
+    if (!text) { showToast('Please paste a document first.'); return; }
+
+    const btn = document.getElementById('uploadBtn');
+    const btnText = document.getElementById('uploadBtnText');
+    btn.disabled = true;
+    btnText.textContent = 'Analyzing…';
+
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId, text })
+      });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.detail); }
+      const data = await res.json();
+
+      document.getElementById('statWords').textContent = data.word_count.toLocaleString();
+      document.getElementById('statChunks').textContent = data.chunk_count;
+      document.getElementById('docStats').classList.add('visible');
+
+      docReady = true;
+      btnText.textContent = 'Document Ready ✓';
+      btn.style.background = '#2ecc71';
+
+    } catch (err) {
+      showToast(err.message || 'Upload failed.');
+      btnText.textContent = 'Analyze Document';
+      btn.disabled = false;
+    }
+  }
+
+  // ── Ask ───────────────────────────────────────────────────────────────────
+  async function askQuestion() {
+    if (loading) return;
+    const input = document.getElementById('questionInput');
+    const question = input.value.trim();
+    if (!question) return;
+    if (!docReady) { showToast('Please upload a document first.'); return; }
+
+    loading = true;
+    document.getElementById('sendBtn').disabled = true;
+    document.getElementById('emptyState')?.remove();
+
+    appendUserMsg(question);
+    input.value = '';
+    input.style.height = 'auto';
+
+    const loadingEl = appendLoadingMsg();
+
+    try {
+      const res = await fetch('/api/query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId, question })
+      });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.detail); }
+      const data = await res.json();
+
+      loadingEl.remove();
+      appendAssistantMsg(data.answer, data.sources, data.confidence);
+
+    } catch (err) {
+      loadingEl.remove();
+      showToast(err.message || 'Query failed.');
+    } finally {
+      loading = false;
+      document.getElementById('sendBtn').disabled = false;
+    }
+  }
+
+  // ── DOM helpers ───────────────────────────────────────────────────────────
+  function appendUserMsg(text) {
+    const chat = document.getElementById('chatArea');
+    chat.insertAdjacentHTML('beforeend', `
+      <div class="msg msg-user">
+        <div class="msg-label">You</div>
+        <div class="bubble">${escHtml(text)}</div>
+      </div>
+    `);
+    scrollBottom();
+  }
+
+  function appendLoadingMsg() {
+    const chat = document.getElementById('chatArea');
+    chat.insertAdjacentHTML('beforeend', `
+      <div class="msg msg-assistant msg-loading" id="loadingMsg">
+        <div class="msg-label">Legal Copilot</div>
+        <div class="bubble">
+          <div class="dots"><span></span><span></span><span></span></div>
+        </div>
+      </div>
+    `);
+    scrollBottom();
+    return document.getElementById('loadingMsg');
+  }
+
+  function appendAssistantMsg(answer, sources, confidence) {
+    const confClass = `conf-${confidence}`;
+    const confLabel = confidence.charAt(0).toUpperCase() + confidence.slice(1);
+
+    const sourceChips = sources.map(s => `
+      <div class="source-chip">
+        <span class="source-num">§${s.index}</span>
+        <span>${escHtml(s.preview)}</span>
+      </div>
+    `).join('');
+
+    const chat = document.getElementById('chatArea');
+    chat.insertAdjacentHTML('beforeend', `
+      <div class="msg msg-assistant">
+        <div class="msg-label">Legal Copilot</div>
+        <div class="bubble">
+          <div class="answer-text">${escHtml(answer)}</div>
+          <div class="sources">
+            <div class="sources-header">
+              Sources
+              <span class="confidence-badge ${confClass}">${confLabel} confidence</span>
+            </div>
+            ${sourceChips}
+          </div>
+        </div>
+      </div>
+    `);
+    scrollBottom();
+  }
+
+  function scrollBottom() {
+    const c = document.getElementById('chatArea');
+    c.scrollTop = c.scrollHeight;
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── UX helpers ────────────────────────────────────────────────────────────
+  function useQuestion(q) {
+    document.getElementById('questionInput').value = q;
+    document.getElementById('questionInput').focus();
+  }
+
+  function handleKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      askQuestion();
+    }
+  }
+
+  function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3500);
+  }
+</script>
+</body>
+</html>
