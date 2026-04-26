@@ -5,6 +5,7 @@ from pydantic import BaseModel
 import anthropic
 import os
 import math
+import uvicorn
 
 app = FastAPI()
 
@@ -99,9 +100,8 @@ async def query(req: QueryRequest):
         ]
     )
     answer = message.content[0].text
-    return {"answer": answer, "confidence": "medium"}
+    return {"answer": answer, "confidence": "medium", "sources": []}
 
 
 if __name__ == "__main__":
-    import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
